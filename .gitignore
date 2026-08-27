@@ -3,3 +3,9 @@ node_modules/
 .env.*
 .DS_Store
 *.log
+
+# internal/planning docs — not part of the shipped project
+AI-Native-SDLC-Challenge-Sartlari.md
+AI-Native-SDLC-Challenge-Sartlari.pdf
+Proje-Fikri-UI-Regresyon-Test-Agent.md
+design-system.md
