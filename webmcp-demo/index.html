@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WebMCP Demo Banka Uygulaması</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.tailwindcss.com"></script>
+<style> body { font-family: 'Plus Jakarta Sans', sans-serif; } </style>
+</head>
+<body class="bg-white text-slate-800">
+<div class="flex min-h-screen">
+
+  <!-- SIDEBAR -->
+  <aside class="w-60 shrink-0 text-white flex flex-col" style="background:#0f1d3d;">
+    <div class="px-5 py-6 border-b" style="border-color: rgba(255,255,255,0.08);">
+      <div class="text-[10px] font-semibold uppercase tracking-wider" style="color: rgba(255,255,255,0.35);">AI Native SDLC</div>
+      <div class="text-lg font-semibold mt-1">Demo Banka Uygulaması</div>
+    </div>
+    <nav class="flex-1 px-3 py-4 space-y-1 text-sm">
+      <a href="#transfer" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">1 · Havale/EFT</a>
+      <a href="#deposit" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">2 · Vadeli Hesap Aç</a>
+      <a href="#bill" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">3 · Fatura Öde</a>
+      <a href="#card" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">4 · Kart Başvurusu</a>
+      <a href="#beneficiary" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">5 · Alıcı Ekle</a>
+      <a href="#debug" class="block px-3 py-2 rounded-lg hover:bg-white/5" style="color: rgba(255,255,255,0.65);">🔧 Tool Listesi (Debug)</a>
+    </nav>
+    <div class="px-4 py-4 text-xs border-t" style="border-color: rgba(255,255,255,0.08); color: rgba(255,255,255,0.35);">
+      <span id="mcp-status-dot" class="inline-block w-2 h-2 rounded-full mr-1" style="background:#94a3b8;"></span>
+      <span id="mcp-status-text">document.modelContext kontrol ediliyor…</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="flex-1 px-8 py-10">
+    <div class="max-w-2xl mx-auto space-y-10">
+
+      <div>
+        <h1 class="text-2xl font-semibold" style="color:#0f1d3d;">WebMCP Test Agent — Demo Banka Uygulaması</h1>
+        <p class="text-sm text-slate-500 mt-1">
+          5 farklı ekran, 5 farklı WebMCP tool olarak expose ediliyor. Her tool'un
+          JSON Schema'sı farklı kısıt tiplerini (enum, pattern, minimum, maxLength,
+          integer, boolean) içeriyor — dış test agent'ının üzerinde deneyebileceği
+          zengin bir yüzey oluşturmak için.
+        </p>
+      </div>
+
+      <!-- 1. HAVALE -->
+      <section id="transfer" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">1 · Havale / EFT</h2>
+        <form data-tool="submitTransfer" class="app-form space-y-3">
+          <div><label class="lbl">Alıcı IBAN</label><input data-field="iban" type="text" placeholder="TR..." class="inp" /></div>
+          <div><label class="lbl">Alıcı Ad Soyad</label><input data-field="recipientName" type="text" class="inp" /></div>
+          <div><label class="lbl">Tutar (TL)</label><input data-field="amount" type="number" step="0.01" class="inp" /></div>
+          <div><label class="lbl">Açıklama (opsiyonel, en fazla 140 karakter)</label><textarea data-field="description" rows="2" class="inp"></textarea></div>
+          <button type="submit" class="btn-primary">Havaleyi Gönder</button>
+          <div class="result-box hidden"></div>
+        </form>
+      </section>
+
+      <!-- 2. VADELİ HESAP -->
+      <section id="deposit" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">2 · Vadeli Hesap Aç</h2>
+        <form data-tool="openTermDeposit" class="app-form space-y-3">
+          <div><label class="lbl">Tutar (min. 1.000)</label><input data-field="amount" type="number" step="0.01" class="inp" /></div>
+          <div><label class="lbl">Vade (ay)</label>
+            <select data-field="termMonths" data-type="integer" class="inp">
+              <option value="">Seçiniz</option>
+              <option value="1">1</option><option value="3">3</option><option value="6">6</option><option value="12">12</option>
+            </select>
+          </div>
+          <div><label class="lbl">Para Birimi</label>
+            <select data-field="currency" class="inp">
+              <option value="">Seçiniz</option>
+              <option value="TRY">TRY</option><option value="USD">USD</option><option value="EUR">EUR</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2"><input data-field="autoRenew" data-type="boolean" type="checkbox" id="dep-auto" /><label for="dep-auto" class="text-sm text-slate-600">Otomatik yenilensin</label></div>
+          <button type="submit" class="btn-primary">Hesabı Aç</button>
+          <div class="result-box hidden"></div>
+        </form>
+      </section>
+
+      <!-- 3. FATURA ÖDE -->
+      <section id="bill" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">3 · Fatura Öde</h2>
+        <form data-tool="payBill" class="app-form space-y-3">
+          <div><label class="lbl">Fatura Türü</label>
+            <select data-field="billType" class="inp">
+              <option value="">Seçiniz</option>
+              <option value="elektrik">Elektrik</option><option value="su">Su</option>
+              <option value="dogalgaz">Doğalgaz</option><option value="telefon">Telefon</option><option value="internet">İnternet</option>
+            </select>
+          </div>
+          <div><label class="lbl">Abone No (9-12 hane)</label><input data-field="subscriberNumber" type="text" class="inp" /></div>
+          <div><label class="lbl">Tutar (TL)</label><input data-field="amount" type="number" step="0.01" class="inp" /></div>
+          <button type="submit" class="btn-primary">Faturayı Öde</button>
+          <div class="result-box hidden"></div>
+        </form>
+      </section>
+
+      <!-- 4. KART BAŞVURUSU -->
+      <section id="card" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">4 · Kredi Kartı Başvurusu</h2>
+        <form data-tool="applyForCreditCard" class="app-form space-y-3">
+          <div><label class="lbl">TC Kimlik No (11 hane)</label><input data-field="nationalId" type="text" class="inp" /></div>
+          <div><label class="lbl">Aylık Gelir (min. 8.000)</label><input data-field="monthlyIncome" type="number" step="0.01" class="inp" /></div>
+          <div><label class="lbl">Telefon (05xxxxxxxxx)</label><input data-field="phoneNumber" type="text" class="inp" /></div>
+          <div><label class="lbl">Kart Tipi</label>
+            <select data-field="cardType" class="inp">
+              <option value="">Seçiniz</option>
+              <option value="standart">Standart</option><option value="gold">Gold</option><option value="platinum">Platinum</option>
+            </select>
+          </div>
+          <button type="submit" class="btn-primary">Başvuruyu Gönder</button>
+          <div class="result-box hidden"></div>
+        </form>
+      </section>
+
+      <!-- 5. ALICI EKLE -->
+      <section id="beneficiary" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">5 · Kayıtlı Alıcı Ekle</h2>
+        <form data-tool="addBeneficiary" class="app-form space-y-3">
+          <div><label class="lbl">Takma Ad (2-30 karakter)</label><input data-field="nickname" type="text" class="inp" /></div>
+          <div><label class="lbl">IBAN</label><input data-field="iban" type="text" class="inp" /></div>
+          <div><label class="lbl">Banka Adı (opsiyonel)</label><input data-field="bankName" type="text" class="inp" /></div>
+          <button type="submit" class="btn-primary">Alıcıyı Kaydet</button>
+          <div class="result-box hidden"></div>
+        </form>
+      </section>
+
+      <!-- DEBUG: TOOL LİSTESİ -->
+      <section id="debug" class="rounded-2xl border border-slate-200 shadow-sm p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-500 mb-4">🔧 Kayıtlı WebMCP Tool'ları (Debug)</h2>
+        <pre id="tools-debug" class="text-xs bg-slate-50 rounded-xl p-4 overflow-x-auto text-slate-600"></pre>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<style>
+  .lbl { display:block; font-size:0.75rem; font-weight:500; color:#64748b; margin-bottom:0.25rem; }
+  .inp { width:100%; padding:0.625rem 1rem; border-radius:0.75rem; border:1px solid #e2e8f0; font-size:0.875rem; }
+  .inp:focus { outline:none; border-color:#60a5fa; }
+  .btn-primary { padding:0.5rem 1.25rem; border-radius:0.75rem; font-size:0.875rem; font-weight:500; color:#fff; background:#1e87f0; }
+  .btn-primary:hover { background:#1a78d8; }
+  .result-box { font-size:0.875rem; border-radius:0.75rem; padding:0.75rem 1rem; border:1px solid; }
+</style>
+
+<script>
+/* ============================================================
+   0. WEBMCP POLYFILL (native yoksa devreye girer)
+   ============================================================ */
+(function installWebMCPPolyfillIfNeeded() {
+  if (document.modelContext) {
+    document.getElementById('mcp-status-text').textContent = 'Native document.modelContext bulundu';
+    document.getElementById('mcp-status-dot').style.background = '#22c55e';
+    return;
+  }
+  const registry = new Map();
+  document.modelContext = {
+    async registerTool(tool) { registry.set(tool.name, tool); return { unregister: () => registry.delete(tool.name) }; },
+    async getTools() { return Array.from(registry.values()).map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })); },
+    async executeTool(toolRef, params) {
+      const tool = registry.get(toolRef.name || toolRef);
+      if (!tool) throw new Error('Tool bulunamadı: ' + toolRef);
+      return await tool.execute(params);
+    }
+  };
+  document.getElementById('mcp-status-text').textContent = 'Polyfill aktif (native WebMCP bulunamadı)';
+  document.getElementById('mcp-status-dot').style.background = '#f59e0b';
+})();
+
+/* ============================================================
+   1. ORTAK ŞEMA DOĞRULAMA
+   ============================================================ */
+function validateAgainstSchema(schema, data) {
+  const errors = [];
+  for (const key of schema.required || []) {
+    if (data[key] === undefined || data[key] === null || data[key] === "") errors.push(`${key} zorunludur`);
+  }
+  for (const [key, rule] of Object.entries(schema.properties)) {
+    const val = data[key];
+    if (val === undefined || val === null || val === "") continue;
+    if (rule.type === "string" && typeof val !== "string") errors.push(`${key} metin olmalı`);
+    if ((rule.type === "number" || rule.type === "integer") && (typeof val !== "number" || Number.isNaN(val))) errors.push(`${key} sayı olmalı`);
+    if (rule.type === "integer" && typeof val === "number" && !Number.isInteger(val)) errors.push(`${key} tam sayı olmalı`);
+    if (rule.type === "boolean" && typeof val !== "boolean") errors.push(`${key} boolean olmalı`);
+    if (rule.pattern && typeof val === "string" && !(new RegExp(rule.pattern).test(val))) errors.push(`${key} format kuralına uymuyor (${rule.pattern})`);
+    if (rule.enum && !rule.enum.includes(val)) errors.push(`${key} şu değerlerden biri olmalı: ${rule.enum.join(", ")}`);
+    if (rule.minimum !== undefined && typeof val === "number" && val < rule.minimum) errors.push(`${key} minimum ${rule.minimum} olmalı`);
+    if (rule.maxLength !== undefined && typeof val === "string" && val.length > rule.maxLength) errors.push(`${key} en fazla ${rule.maxLength} karakter olmalı`);
+    if (rule.minLength !== undefined && typeof val === "string" && val.length < rule.minLength) errors.push(`${key} en az ${rule.minLength} karakter olmalı`);
+  }
+  return errors;
+}
+
+function makeHandler(schema, successMessage) {
+  return function (data) {
+    const errors = validateAgainstSchema(schema, data);
+    if (errors.length > 0) return { ok: false, errors };
+    return { ok: true, message: successMessage(data) };
+  };
+}
+
+/* ============================================================
+   2. TOOL TANIMLARI — 5 FARKLI BANKACILIK EKRANI
+   ============================================================ */
+const TOOLS = [
+  {
+    name: "submitTransfer",
+    description: "Havale/EFT işlemini gerçekleştirir.",
+    schema: {
+      type: "object",
+      properties: {
+        iban: { type: "string", pattern: "^TR[0-9]{24}$", description: "Alıcı IBAN" },
+        recipientName: { type: "string", minLength: 1, description: "Alıcı ad soyad" },
+        amount: { type: "number", minimum: 0.01, description: "Tutar (TL)" },
+        description: { type: "string", maxLength: 140, description: "Açıklama" }
+      },
+      required: ["iban", "recipientName", "amount"]
+    },
+    successMessage: (d) => `Havale onaylandı: ${d.amount} TL → ${d.recipientName}`
+  },
+  {
+    name: "openTermDeposit",
+    description: "Vadeli mevduat hesabı açar.",
+    schema: {
+      type: "object",
+      properties: {
+        amount: { type: "number", minimum: 1000, description: "Açılış tutarı" },
+        termMonths: { type: "integer", enum: [1, 3, 6, 12], description: "Vade (ay)" },
+        currency: { type: "string", enum: ["TRY", "USD", "EUR"], description: "Para birimi" },
+        autoRenew: { type: "boolean", description: "Otomatik yenileme" }
+      },
+      required: ["amount", "termMonths", "currency"]
+    },
+    successMessage: (d) => `Vadeli hesap açıldı: ${d.amount} ${d.currency}, ${d.termMonths} ay`
+  },
+  {
+    name: "payBill",
+    description: "Fatura ödemesi yapar.",
+    schema: {
+      type: "object",
+      properties: {
+        billType: { type: "string", enum: ["elektrik", "su", "dogalgaz", "telefon", "internet"], description: "Fatura türü" },
+        subscriberNumber: { type: "string", pattern: "^[0-9]{9,12}$", description: "Abone numarası" },
+        amount: { type: "number", minimum: 0.01, description: "Tutar" }
+      },
+      required: ["billType", "subscriberNumber", "amount"]
+    },
+    successMessage: (d) => `${d.billType} faturası ödendi: ${d.amount} TL`
+  },
+  {
+    name: "applyForCreditCard",
+    description: "Kredi kartı başvurusu oluşturur.",
+    schema: {
+      type: "object",
+      properties: {
+        nationalId: { type: "string", pattern: "^[0-9]{11}$", description: "TC Kimlik No" },
+        monthlyIncome: { type: "number", minimum: 8000, description: "Aylık gelir" },
+        phoneNumber: { type: "string", pattern: "^05[0-9]{9}$", description: "Telefon" },
+        cardType: { type: "string", enum: ["standart", "gold", "platinum"], description: "Kart tipi" }
+      },
+      required: ["nationalId", "monthlyIncome", "phoneNumber", "cardType"]
+    },
+    successMessage: (d) => `${d.cardType} kart başvurusu alındı`
+  },
+  {
+    name: "addBeneficiary",
+    description: "Kayıtlı alıcı/beneficiary ekler.",
+    schema: {
+      type: "object",
+      properties: {
+        nickname: { type: "string", minLength: 2, maxLength: 30, description: "Takma ad" },
+        iban: { type: "string", pattern: "^TR[0-9]{24}$", description: "IBAN" },
+        bankName: { type: "string", minLength: 2, description: "Banka adı" }
+      },
+      required: ["nickname", "iban"]
+    },
+    successMessage: (d) => `Alıcı kaydedildi: ${d.nickname}`
+  }
+];
+
+TOOLS.forEach((t) => {
+  const handler = makeHandler(t.schema, t.successMessage);
+  document.modelContext.registerTool({
+    name: t.name,
+    description: t.description,
+    inputSchema: t.schema,
+    async execute(params) {
+      const result = handler(params);
+      if (!result.ok) return { content: [{ type: "text", text: "HATA: " + result.errors.join("; ") }], isError: true };
+      return { content: [{ type: "text", text: result.message }] };
+    }
+  });
+});
+
+/* ============================================================
+   3. MANUEL FORM SUBMIT (her ekran için ortak handler)
+   ============================================================ */
+document.querySelectorAll(".app-form").forEach((form) => {
+  const toolName = form.dataset.tool;
+  const tool = TOOLS.find((t) => t.name === toolName);
+  const handler = makeHandler(tool.schema, tool.successMessage);
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const data = {};
+    form.querySelectorAll("[data-field]").forEach((el) => {
+      const key = el.dataset.field;
+      const type = el.dataset.type || tool.schema.properties[key]?.type;
+      if (el.type === "checkbox") data[key] = el.checked;
+      else if (type === "number" || type === "integer") data[key] = el.value === "" ? undefined : parseFloat(el.value);
+      else data[key] = el.value;
+    });
+    const result = handler(data);
+    const box = form.querySelector(".result-box");
+    box.classList.remove("hidden");
+    if (result.ok) {
+      box.style.background = "#eff6ff"; box.style.color = "#1e40af"; box.style.borderColor = "#bfdbfe";
+      box.textContent = result.message;
+    } else {
+      box.style.background = "#fef2f2"; box.style.color = "#dc2626"; box.style.borderColor = "#fee2e2";
+      box.textContent = result.errors.join(" · ");
+    }
+  });
+});
+
+/* ============================================================
+   4. DEBUG PANELİ
+   ============================================================ */
+(async () => {
+  const tools = await document.modelContext.getTools();
+  document.getElementById("tools-debug").textContent = JSON.stringify(tools, null, 2);
+})();
+</script>
+</body>
+</html>

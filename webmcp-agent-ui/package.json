@@ -1,0 +1,19 @@
+{
+  "name": "webmcp-agent-ui",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "electron": "^44.0.0"
+  },
+  "dependencies": {
+    "randexp": "^0.5.3"
+  }
+}
