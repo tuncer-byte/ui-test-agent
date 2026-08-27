@@ -32,7 +32,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawnSync } = require("child_process");
 const { chromium } = require("playwright");
-const { ensureReachable, parseTestCredentials } = require("./preflight");
+const { ensureReachable, parseTestCredentials, matchCredentialTool } = require("./preflight");
 
 // Not assumed to be "two levels up from this script" — this script gets
 // bundled and invoked from different locations (the monorepo CLI, and a
@@ -235,7 +235,14 @@ function sanitizeSchemaProperties(properties) {
 // Schema, success message) from the real field facts above. This is the
 // ONLY place a WebMCP tool gets authored in this pipeline — there is no
 // heuristic schema-builder to fall back to.
-async function generateToolWithGemini(form, apiKey, model) {
+//
+// Gemini can also answer "this isn't the real screen to test" (isGate)
+// instead of a tool — e.g. the developer's memory notes say this app
+// requires login first, and the current DOM looks like exactly that
+// login form rather than the actual feature. That happens in apps where
+// an auth gate renders in place (same URL, no redirect) rather than
+// navigating away, which the URL-based check in preflight.js can't see.
+async function generateToolWithGemini(form, apiKey, model, memory) {
   const fieldKeys = form.fields.map((f) => f.key);
   if (fieldKeys.length === 0) {
     return { ok: false, reason: "form has no usable fields" };
@@ -245,20 +252,20 @@ async function generateToolWithGemini(form, apiKey, model) {
   const nameInstruction = form.existingToolName
     ? `This form already has a WebMCP tool name assigned by the developer — reuse it EXACTLY, do not rename it: "${form.existingToolName}"`
     : "No existing tool name — invent a clear, verb-first camelCase name for the action (e.g. submitLoginForm, createInvoice, addBeneficiary).";
+  const memorySection = memory
+    ? `\nDeveloper's notes about this application (use this to judge what you're actually looking at — e.g. it may say the app requires logging in first, name specific screens to ignore, or explain what a field is really for):\n"""\n${memory}\n"""\n`
+    : "";
 
   const prompt = `You are an expert engineer writing a WebMCP tool definition (the document.modelContext.registerTool contract: a name, a description, a JSON Schema input contract, and a success message) for one screen of a real web app.
 
 Below is FACTUAL data extracted directly from a real <form> in the page's live DOM. Any explicit HTML5 validation attribute given below (required/pattern/minLength/maxLength/min/max/options) was written by the developer — treat it as ground truth and NEVER contradict or loosen it. Where a field has no explicit attribute for something, use your judgement from its name/label/placeholder/type to propose a realistic, sensible constraint (e.g. a field that looks like an email should get an email-format regex pattern; a field that looks like a password should get a reasonable minLength; a field whose label mentions "(optional)" must be left out of "required"; a checkbox must be type "boolean" and must never be required).
+${memorySection}
+First, decide whether this form is actually the screen to test, or a PREREQUISITE GATE (login, consent, tenant picker, etc.) that just happens to be what's currently rendered — some apps show a gate in place, at the same URL, instead of redirecting to a separate page. Judge this from the developer's notes above (if any) and from the fields/labels/heading themselves (e.g. only email+password fields with a heading like "Log in" or "Sign in" is almost always a gate, not the feature under test).
 
-Page title: ${form.pageTitle || "(none)"}
-Screen heading: ${form.headingText || "(none)"}
-Submit button text: ${form.submitButtonText || "(none)"}
-${nameInstruction}
+If it IS a gate, return ONLY this JSON object, no other text:
+{ "isGate": true, "gateReason": "one short sentence explaining why this looks like a gate, not the target screen" }
 
-Fields (JSON, in DOM order):
-${JSON.stringify(form.fields, null, 2)}
-
-Return ONLY a JSON object with this exact shape, no other text:
+Otherwise, return ONLY a JSON object with this exact shape, no other text:
 {
   "name": "camelCase tool name",
   "description": "one short sentence describing what this tool does",
@@ -269,6 +276,14 @@ Return ONLY a JSON object with this exact shape, no other text:
   },
   "successMessage": "a template-literal BODY (no surrounding backticks/quotes) using \${d.fieldKey} placeholders, referencing only fields in schema.properties"
 }
+
+Page title: ${form.pageTitle || "(none)"}
+Screen heading: ${form.headingText || "(none)"}
+Submit button text: ${form.submitButtonText || "(none)"}
+${nameInstruction}
+
+Fields (JSON, in DOM order):
+${JSON.stringify(form.fields, null, 2)}
 
 Strict rules:
 - "schema.properties" must have EXACTLY one entry per field key given above — ${JSON.stringify(fieldKeys)} — no more, no fewer, no renamed or invented keys.
@@ -320,6 +335,10 @@ Strict rules:
     return { ok: false, reason: `Gemini response is not valid JSON${truncationNote}: ${rawText.slice(0, 300)}` };
   }
   const parsed = parseResult.value;
+
+  if (parsed && parsed.isGate === true) {
+    return { ok: true, isGate: true, reason: parsed.gateReason || "Gemini judged this to be a prerequisite gate, not the target screen." };
+  }
 
   if (!parsed || !parsed.name || !parsed.schema || !parsed.schema.properties) {
     return { ok: false, reason: "Gemini response is missing name/schema/properties" };
@@ -601,7 +620,66 @@ function ensureFormDataTool(source, formIndex, toolName) {
   return source.slice(0, block.start) + patchedBlock + source.slice(block.end);
 }
 
-async function generateForFile(filePath, dryRun, apiKey, model) {
+// Handles the case where Gemini judged the CURRENT screen itself (not a
+// redirect target — see ensureReachable in preflight.js for that case)
+// to be a gate rendered in place, e.g. an SPA that shows its login form
+// at the same URL instead of navigating to /login. Reloads the same URL
+// fresh, finds an existing tool matching the configured credentials, and
+// calls it — same "discover and call a real tool" mechanism as the
+// URL-redirect case, just without a URL change to key off of.
+async function tryUnlockGate(targetUrl, credentials, log) {
+  if (!credentials) return { ok: false, reason: "no test credentials configured (set them via the ⚙ settings panel)" };
+
+  const browser = await chromium.launch();
+  const page = await browser.newPage();
+  await page.goto(targetUrl, { waitUntil: "load" });
+
+  const hasMcp = await page.evaluate(() => !!document.modelContext);
+  if (!hasMcp) {
+    await browser.close();
+    return { ok: false, reason: "no document.modelContext on this page to call a tool through" };
+  }
+
+  const tools = await page.evaluate(async () => {
+    const list = await document.modelContext.getTools();
+    return list.map((t) => {
+      let schema = t.inputSchema;
+      if (typeof schema === "string") {
+        try {
+          schema = JSON.parse(schema);
+        } catch {
+          schema = { properties: {} };
+        }
+      }
+      return { name: t.name, inputSchema: schema || { properties: {} } };
+    });
+  });
+
+  const match = matchCredentialTool(tools, credentials);
+  if (!match) {
+    await browser.close();
+    return { ok: false, reason: `found ${tools.length} tool(s) (${tools.map((t) => t.name).join(", ") || "none"}) but none matched the configured credentials` };
+  }
+
+  log(`   Calling existing tool "${match.tool.name}" with the configured test credentials...`);
+  const result = await page.evaluate(
+    async ({ name, input }) => {
+      try {
+        const res = await document.modelContext.executeTool({ name }, input);
+        return { ok: !res.isError, text: (res.content && res.content[0] && res.content[0].text) || "" };
+      } catch (err) {
+        return { ok: false, text: err.message };
+      }
+    },
+    { name: match.tool.name, input: match.input }
+  );
+  await browser.close();
+  if (!result.ok) return { ok: false, reason: `"${match.tool.name}" failed: ${result.text}` };
+  log(`   "${match.tool.name}" succeeded ("${result.text}").`);
+  return { ok: true };
+}
+
+async function generateForFile(filePath, dryRun, apiKey, model, memory, gateRetriesLeft = 1) {
   console.log(`\n>> Analyzing screen: ${path.relative(REPO_ROOT, filePath)}`);
   console.log(">> PHASE: discover");
   const source = fs.readFileSync(filePath, "utf-8");
@@ -637,7 +715,24 @@ async function generateForFile(filePath, dryRun, apiKey, model) {
   const usedNames = new Set(existingNames);
   const newTools = [];
   for (const form of candidates) {
-    const result = await generateToolWithGemini(form, apiKey, model);
+    const result = await generateToolWithGemini(form, apiKey, model, memory);
+
+    if (result.ok && result.isGate) {
+      console.log(`   Gemini judged form #${form.formIndex + 1} to be a prerequisite gate, not the target screen: ${result.reason}`);
+      if (gateRetriesLeft <= 0) {
+        console.log("   Already retried once after a gate — not trying again, to avoid looping.");
+        continue;
+      }
+      const unlocked = await tryUnlockGate(targetUrl, credentials, (line) => console.log(line));
+      if (!unlocked.ok) {
+        console.log(`   Could not get past the gate automatically: ${unlocked.reason}`);
+        console.log("   Configure test credentials (⚙ settings panel) — and app notes describing this flow, if useful — so the agent can get past it on its own.");
+        continue;
+      }
+      console.log("   Got past the gate — re-analyzing the screen...");
+      return await generateForFile(filePath, dryRun, apiKey, model, memory, gateRetriesLeft - 1);
+    }
+
     if (!result.ok) {
       console.log(`   SKIPPED form #${form.formIndex + 1} — Gemini tool generation failed: ${result.reason}`);
       continue;
@@ -738,9 +833,11 @@ async function main() {
     }
   }
 
+  const memory = process.env.WEBMCP_APP_MEMORY || null;
+
   let anyWritten = false;
   for (const file of targets) {
-    const res = await generateForFile(file, args.dryRun, apiKey, model);
+    const res = await generateForFile(file, args.dryRun, apiKey, model, memory);
     anyWritten = anyWritten || res.wroteAny;
   }
 

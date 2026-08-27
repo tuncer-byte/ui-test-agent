@@ -13,6 +13,10 @@
   const credentialsStatus = document.getElementById("credentialsStatus");
   const saveCredentialsBtn = document.getElementById("saveCredentials");
   const clearCredentialsBtn = document.getElementById("clearCredentials");
+  const memoryInput = document.getElementById("memory");
+  const memoryStatus = document.getElementById("memoryStatus");
+  const saveMemoryBtn = document.getElementById("saveMemory");
+  const clearMemoryBtn = document.getElementById("clearMemory");
   const fileList = document.getElementById("fileList");
   const generateAllBtn = document.getElementById("generateAll");
   const clearLogBtn = document.getElementById("clearLog");
@@ -20,6 +24,7 @@
 
   let hasKey = false;
   let hasCredentials = false;
+  let hasMemory = false;
   let lastFiles = [];
   const expanded = new Set(); // fsPaths whose results panel is open
 
@@ -50,6 +55,17 @@
     credentialsInput.value = "";
   });
 
+  // Not a secret — keep the text in place after saving so it stays
+  // editable, unlike the write-only key/credentials fields above.
+  saveMemoryBtn.addEventListener("click", () => {
+    vscode.postMessage({ type: "saveMemory", memory: memoryInput.value });
+  });
+
+  clearMemoryBtn.addEventListener("click", () => {
+    vscode.postMessage({ type: "clearMemory" });
+    memoryInput.value = "";
+  });
+
   generateAllBtn.addEventListener("click", () => {
     vscode.postMessage({ type: "generateAll" });
   });
@@ -67,6 +83,8 @@
     generateAllBtn.disabled = !hasKey || lastFiles.length === 0;
     credentialsStatus.innerHTML = hasCredentials ? '<i class="codicon codicon-check"></i> saved' : "not set";
     credentialsStatus.className = "pill " + (hasCredentials ? "pill-ok" : "pill-neutral");
+    memoryStatus.innerHTML = hasMemory ? '<i class="codicon codicon-check"></i> saved' : "not set";
+    memoryStatus.className = "pill " + (hasMemory ? "pill-ok" : "pill-neutral");
   }
 
   const SPINNER = '<i class="codicon codicon-loading codicon-modifier-spin"></i>';
@@ -306,6 +324,8 @@
         modelInput.value = msg.model || "";
         hasKey = !!msg.hasKey;
         hasCredentials = !!msg.hasCredentials;
+        hasMemory = !!msg.memory;
+        memoryInput.value = msg.memory || "";
         updateKeyUI();
         // First run (no key yet): open the settings panel automatically
         // so there's something to click besides the title-bar gear icon.

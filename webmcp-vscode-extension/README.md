@@ -62,7 +62,18 @@ has no WebMCP wiring at all, it adds one self-contained `<script>` block
    scripted login automation and no saved browser sessions — it's the
    same "discover and call a real tool" mechanism used everywhere else in
    this pipeline, just aimed at the screen that's in the way first.
-7. **No mock, ever** — there is no heuristic/rule-based fallback anywhere in
+7. **When a gate doesn't redirect** — some apps (SPAs especially) render
+   their login/consent screen in place, at the same URL, instead of
+   navigating away — the URL-based check above can't see that. So Gemini
+   is also asked, while writing a tool for whatever form it's looking at,
+   to judge whether that form is actually the feature under test or a
+   gate that just happens to be on screen right now — using the form's
+   own fields/labels/heading, and your **App notes** (⚙ → App notes: free
+   text about the app, e.g. "this app requires login first, the login
+   screen isn't a feature to test"). If Gemini says it's a gate, the agent
+   uses the same existing-tool-plus-credentials mechanism to get past it,
+   then re-analyzes the screen — once, not in an unbounded loop.
+8. **No mock, ever** — there is no heuristic/rule-based fallback anywhere in
    this pipeline, for either the tool's schema or its test scenarios (or
    the credentials used to get past a gate — without them configured, a
    gated screen fails with a clear reason instead of guessing a way past

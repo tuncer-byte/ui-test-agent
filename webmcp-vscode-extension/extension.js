@@ -8,6 +8,7 @@ const { startStaticServer } = require("./static-server");
 
 const SECRET_KEY = "webmcpAgent.geminiApiKey";
 const CREDENTIALS_SECRET_KEY = "webmcpAgent.testCredentials";
+const MEMORY_STATE_KEY = "webmcpAgent.appMemory";
 const VIEW_ID = "webmcpAgent.panel";
 
 /** @type {Map<string, { relPath: string, status: "changed"|"generating"|"generated"|"error", phase?: string, summary?: object, results?: object[] }>} */
@@ -472,6 +473,16 @@ class WebmcpViewProvider {
           this.postInitState();
           this.post({ type: "log", line: "Test credentials cleared.\n" });
           break;
+        case "saveMemory":
+          await this.context.workspaceState.update(MEMORY_STATE_KEY, (msg.memory || "").trim() || undefined);
+          this.postInitState();
+          this.post({ type: "log", line: "App notes saved.\n" });
+          break;
+        case "clearMemory":
+          await this.context.workspaceState.update(MEMORY_STATE_KEY, undefined);
+          this.postInitState();
+          this.post({ type: "log", line: "App notes cleared.\n" });
+          break;
         case "generate":
           this.runGenerate(msg.fsPath);
           break;
@@ -512,7 +523,11 @@ class WebmcpViewProvider {
     const hasKey = !!(await this.context.secrets.get(SECRET_KEY));
     const hasCredentials = !!(await this.context.secrets.get(CREDENTIALS_SECRET_KEY));
     const model = vscode.workspace.getConfiguration("webmcpAgent").get("geminiModel");
-    this.post({ type: "init", hasKey, hasCredentials, model });
+    // Unlike the key/credentials (secrets, write-only in the UI), app
+    // notes aren't sensitive — send the value back so it's editable
+    // in place instead of "clear and retype from scratch" every time.
+    const memory = this.context.workspaceState.get(MEMORY_STATE_KEY, "");
+    this.post({ type: "init", hasKey, hasCredentials, model, memory });
   }
 
   async runGenerateAll() {
@@ -554,6 +569,7 @@ class WebmcpViewProvider {
     }
 
     const credentials = await this.context.secrets.get(CREDENTIALS_SECRET_KEY);
+    const memory = this.context.workspaceState.get(MEMORY_STATE_KEY, "");
 
     this.post({ type: "log", line: `\n=== Generating WebMCP code for ${entry.relPath} ===\n` });
     const parser = createRunParser();
@@ -572,7 +588,10 @@ class WebmcpViewProvider {
           this.postFileList();
         }
       },
-      credentials ? { WEBMCP_TEST_CREDENTIALS: credentials } : undefined
+      {
+        ...(credentials ? { WEBMCP_TEST_CREDENTIALS: credentials } : {}),
+        ...(memory ? { WEBMCP_APP_MEMORY: memory } : {}),
+      }
     );
 
     const reportExists = fs.existsSync(reportPath);
@@ -812,6 +831,21 @@ class WebmcpViewProvider {
       <div class="row">
         <button id="saveCredentials"><i class="codicon codicon-save"></i> Save</button>
         <button id="clearCredentials" class="secondary"><i class="codicon codicon-trash"></i> Clear</button>
+      </div>
+
+      <div class="row spread" style="margin-top: 14px;">
+        <label for="memory" style="margin-top: 0;">App notes <span class="hint">(optional — context for Gemini about this app)</span></label>
+        <span id="memoryStatus" class="pill"></span>
+      </div>
+      <textarea id="memory" rows="4" placeholder="e.g. This app requires login first — the login screen is a gate, not a feature to test. The 'ref' field on the invoice screen is an internal order number, not a customer-facing ID."></textarea>
+      <div class="hint" style="display: block; margin-top: 2px;">
+        Read by Gemini while writing a WebMCP tool for a screen — e.g. so it can tell a login/consent
+        gate apart from the actual feature under test, even when the gate renders in place instead of
+        redirecting to its own URL.
+      </div>
+      <div class="row">
+        <button id="saveMemory"><i class="codicon codicon-save"></i> Save</button>
+        <button id="clearMemory" class="secondary"><i class="codicon codicon-trash"></i> Clear</button>
       </div>
     </div>
   </section>
