@@ -1,0 +1,115 @@
+{
+  "name": "webmcp-agent",
+  "displayName": "WebMCP Agent",
+  "description": "Tracks changed screens in your workspace and generates + tests real WebMCP tool code for them.",
+  "version": "0.1.0",
+  "publisher": "toolproof",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Testing",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "dependencies": {
+    "@vscode/codicons": "^0.0.46-24",
+    "playwright": "^1.62.1"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "webmcpAgent",
+          "title": "WebMCP Agent",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "webmcpAgent": [
+        {
+          "type": "webview",
+          "id": "webmcpAgent.panel",
+          "name": "WebMCP Agent"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "webmcpAgent.generateForFile",
+        "title": "WebMCP Agent: Generate WebMCP Code for Current File"
+      },
+      {
+        "command": "webmcpAgent.setGeminiApiKey",
+        "title": "WebMCP Agent: Set Gemini API Key"
+      },
+      {
+        "command": "webmcpAgent.refresh",
+        "title": "WebMCP Agent: Refresh Changed Screens"
+      },
+      {
+        "command": "webmcpAgent.toggleSettings",
+        "title": "WebMCP Agent: Toggle Gemini Settings",
+        "icon": "$(gear)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "webmcpAgent.generateForFile"
+        },
+        {
+          "command": "webmcpAgent.setGeminiApiKey"
+        },
+        {
+          "command": "webmcpAgent.refresh"
+        },
+        {
+          "command": "webmcpAgent.toggleSettings"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "webmcpAgent.toggleSettings",
+          "when": "view == webmcpAgent.panel",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "WebMCP Agent",
+      "properties": {
+        "webmcpAgent.watchGlob": {
+          "type": "string",
+          "default": "**/*.html",
+          "description": "Glob pattern for frontend screen files to track for changes."
+        },
+        "webmcpAgent.excludeGlob": {
+          "type": "string",
+          "default": "**/node_modules/**",
+          "description": "Glob pattern excluded from tracking."
+        },
+        "webmcpAgent.agentRunnerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Override: absolute path to a folder containing codegen-agent.js and runner.js. Leave empty to use the copy bundled with this extension (works in any workspace)."
+        },
+        "webmcpAgent.geminiModel": {
+          "type": "string",
+          "default": "gemini-2.5-flash",
+          "description": "Gemini model used to write tool descriptions/success messages during codegen, and to generate test scenarios (required — there is no rule-based fallback)."
+        },
+        "webmcpAgent.agentUiPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to a webmcp-agent-ui folder to use for \"Simulate\", overriding auto-detection. Leave empty to reuse a copy already checked out in the workspace, or fall back to this extension's own managed copy (Electron installed there on first use, since it's too large to bundle in the .vsix)."
+        }
+      }
+    }
+  }
+}

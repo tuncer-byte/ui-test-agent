@@ -1,0 +1,7 @@
+.vscode/**
+.gitignore
+*.vsix
+node_modules/@vscode/codicons/**
+!node_modules/@vscode/codicons/dist/codicon.css
+!node_modules/@vscode/codicons/dist/codicon.ttf
+node_modules/fsevents/**

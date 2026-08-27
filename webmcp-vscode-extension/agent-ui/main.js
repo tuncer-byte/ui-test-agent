@@ -1,3 +1,9 @@
+// NOTE: this is a bundled copy so "Simulate" can offer webmcp-agent-ui
+// without requiring it to already be checked out in the workspace.
+// Source of truth is webmcp-agent-ui/ at the repo root — keep both in
+// sync. Unlike agent-runner, this copy ships without node_modules
+// (Electron alone is ~100-200MB) — the extension installs it into a
+// managed location on first "Simulate" use (see extension.js).
 const { app, BrowserWindow, ipcMain } = require("electron");
 const path = require("path");
 const fs = require("fs");

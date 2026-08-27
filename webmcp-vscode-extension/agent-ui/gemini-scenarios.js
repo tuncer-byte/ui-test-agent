@@ -1,16 +1,12 @@
 // Generates test scenarios from a WebMCP tool schema using Gemini.
-// This is the ONLY scenario source runner.js uses — there is no
-// rule-based/mock fallback; if Gemini can't produce scenarios, the
-// caller skips that tool rather than substituting synthetic data.
+// apiKey/model come as parameters from the caller (the input in the renderer).
 
 async function generateScenariosWithGemini(tool, apiKey, model) {
-  const key = apiKey || process.env.GEMINI_API_KEY;
-  if (!key) {
-    return { ok: false, reason: "GEMINI_API_KEY is not set" };
+  if (!apiKey) {
+    return { ok: false, reason: "No API key entered" };
   }
-
-  const mdl = model || process.env.GEMINI_MODEL || "gemini-2.5-flash";
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${key}`;
+  const useModel = model || "gemini-2.5-flash";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${useModel}:generateContent?key=${apiKey}`;
 
   const prompt = `You are an experienced QA/test engineer. Below is a WebMCP tool's name,
 description, and JSON Schema. Based on this schema, generate at least 6 and at most 10
@@ -30,7 +26,7 @@ JSON Schema: ${JSON.stringify(tool.inputSchema)}`;
 
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json", maxOutputTokens: 8192 }
+    generationConfig: { responseMimeType: "application/json" }
   };
 
   let res;
@@ -50,18 +46,16 @@ JSON Schema: ${JSON.stringify(tool.inputSchema)}`;
   }
 
   const data = await res.json();
-  const finishReason = data?.candidates?.[0]?.finishReason;
   const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
   if (!rawText) {
-    return { ok: false, reason: `Gemini response had no expected content (finishReason: ${finishReason || "unknown"})` };
+    return { ok: false, reason: "Gemini response had no expected content" };
   }
 
   let scenarios;
   try {
     scenarios = JSON.parse(rawText);
   } catch (err) {
-    const truncationNote = finishReason === "MAX_TOKENS" ? " (response was truncated — hit maxOutputTokens)" : "";
-    return { ok: false, reason: `Gemini response is not valid JSON${truncationNote}: ${rawText.slice(0, 300)}` };
+    return { ok: false, reason: "Gemini response is not valid JSON: " + rawText.slice(0, 300) };
   }
 
   if (!Array.isArray(scenarios) || scenarios.length === 0) {
