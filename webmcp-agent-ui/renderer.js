@@ -49,16 +49,16 @@ function navigateTo(rawUrl) {
   discoveredTools = [];
   selectedTool = null;
   currentScenarios = [];
-  toolsList.innerHTML = '<span class="text-slate-400">Henüz keşfedilmedi.</span>';
+  toolsList.innerHTML = '<span class="text-slate-400">Not discovered yet.</span>';
   scenariosList.innerHTML = "";
-  resultsList.innerHTML = '<span class="text-slate-400">Henüz test çalıştırılmadı.</span>';
+  resultsList.innerHTML = '<span class="text-slate-400">No tests run yet.</span>';
   resultsSummary.classList.add("hidden");
   setEnabled(discoverBtn, false);
   setEnabled(inferBtn, false);
   setEnabled(geminiGenBtn, false);
   setEnabled(rulesGenBtn, false);
   setEnabled(runBtn, false);
-  setStatus("Sayfa yükleniyor…", "#f59e0b");
+  setStatus("Loading page…", "#f59e0b");
   const finalUrl = url.startsWith("http") || url.startsWith("about:") ? url : "http://" + url;
   targetUrlInput.value = finalUrl;
   addressInput.value = finalUrl;
@@ -86,7 +86,7 @@ webview.addEventListener("did-stop-loading", () => {
 webview.addEventListener("did-navigate", syncAddressBar);
 webview.addEventListener("did-navigate-in-page", syncAddressBar);
 webview.addEventListener("page-title-updated", (e) => {
-  tabTitle.textContent = e.title || "Yeni Sekme";
+  tabTitle.textContent = e.title || "New Tab";
 });
 
 function syncAddressBar(e) {
@@ -100,21 +100,21 @@ function syncAddressBar(e) {
 }
 
 webview.addEventListener("dom-ready", async () => {
-  setStatus("Sayfa yüklendi, document.modelContext kontrol ediliyor…", "#f59e0b");
+  setStatus("Page loaded, checking document.modelContext…", "#f59e0b");
   const found = await pollForModelContext();
   if (found === "ready") {
-    setStatus("document.modelContext bulundu, tool'lar hazır", "#22c55e");
+    setStatus("document.modelContext found, tools ready", "#22c55e");
     setEnabled(discoverBtn, true);
   } else if (found === "empty") {
-    setStatus("modelContext var ama tool henüz görünmüyor — yine de Keşfet'i dene", "#f59e0b");
+    setStatus("modelContext exists but no tools visible yet — try Discover anyway", "#f59e0b");
     setEnabled(discoverBtn, true);
   } else {
-    setStatus("document.modelContext bulunamadı", "#dc2626");
+    setStatus("document.modelContext not found", "#dc2626");
   }
-  // DOM-çıkarım her durumda mümkün — sitenin WebMCP'si olmasa bile
-  // document.modelContext nesnesini biz kendimiz polyfill ile kuruyoruz
-  // (bkz. webmcp-demo/index.html'deki gibi bir mekanizma yoksa bile
-  // registerTool çağrısı için document.modelContext'in var olması gerekir).
+  // DOM inference is always possible, even without native WebMCP —
+  // we polyfill document.modelContext ourselves so that registerTool()
+  // has somewhere to register into (see webmcp-demo/index.html for a
+  // real implementation of the same mechanism).
   await ensureModelContextExists();
   setEnabled(inferBtn, true);
 });
@@ -129,7 +129,7 @@ async function ensureModelContextExists() {
         async getTools() { return Array.from(registry.values()).map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })); },
         async executeTool(ref, params) {
           const tool = registry.get(ref.name || ref);
-          if (!tool) throw new Error("Tool bulunamadı: " + (ref.name || ref));
+          if (!tool) throw new Error("Tool not found: " + (ref.name || ref));
           return await tool.execute(params);
         }
       };
@@ -138,10 +138,10 @@ async function ensureModelContextExists() {
   `);
 }
 
-// "document.modelContext" nesnesi genelde sayfa açılır açılmaz var olur,
-// ama sayfanın kendi bileşenleri (hydration sonrası vb.) tool'ları biraz
-// gecikmeli kayıt edebilir. Bu yüzden sadece nesnenin varlığını değil,
-// gerçekten en az 1 tool kayıtlı olup olmadığını bekliyoruz.
+// "document.modelContext" usually exists right after the page opens,
+// but the page's own components (post-hydration, etc.) may register
+// tools with a slight delay. So we wait not just for the object to
+// exist, but for at least 1 tool to actually be registered.
 async function pollForModelContext(timeoutMs = 8000) {
   const start = Date.now();
   let sawModelContext = false;
@@ -163,12 +163,12 @@ async function pollForModelContext(timeoutMs = 8000) {
 }
 
 async function fetchToolsWithRetry(maxAttempts = 6, delayMs = 500) {
-  // NOT: document.modelContext.getTools() bazı implementasyonlarda ("window": <Window>)
-  // gibi klonlanamayan canlı obje referansları içerebiliyor — Electron'un
-  // executeJavaScript'i bunu IPC üzerinden taşıyamaz ("object could not be cloned").
-  // Bu yüzden sadece ihtiyacımız olan, düz/serileştirilebilir alanları seçip
-  // döndürüyoruz. inputSchema bazı sitelerde obje yerine JSON string olarak
-  // geldiği için de burada normalize ediyoruz.
+  // NOTE: document.modelContext.getTools() can, in some implementations,
+  // include live object references (e.g. "window": <Window>) that cannot be
+  // cloned — Electron's executeJavaScript can't carry that over IPC
+  // ("object could not be cloned"). So we only pick out the plain,
+  // serializable fields we actually need. inputSchema also gets normalized
+  // here, since some sites return it as a JSON string instead of an object.
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const result = await webview.executeJavaScript(`
@@ -198,11 +198,12 @@ async function fetchToolsWithRetry(maxAttempts = 6, delayMs = 500) {
   return { ok: true, tools: [] };
 }
 
-// DOM'dan otomatik tool çıkarımı — native WebMCP olmayan siteler için "fallback".
-// HTML5'in kendi native validasyon attribute'larını (pattern/required/min/max/
-// maxlength/type=email) okuyup bir JSON Schema üretir, ve gerçek doğrulama için
-// tarayıcının kendi form.checkValidity() motorunu kullanır. Bu, gerçek WebMCP
-// kadar güvenilir DEĞİLDİR (hâlâ DOM'a bağımlı) — bu yüzden UI'da ayrı etiketleniyor.
+// Automatic tool inference from the DOM — a "fallback" for sites without
+// native WebMCP. Reads HTML5's own native validation attributes
+// (pattern/required/min/max/maxlength/type=email) to build a JSON Schema,
+// and uses the browser's own form.checkValidity() engine for real
+// validation. This is NOT as reliable as real WebMCP (it's still DOM-
+// dependent) — hence it's labeled separately in the UI.
 async function inferToolsFromDOM() {
   const code = `
     (async () => {
@@ -220,9 +221,9 @@ async function inferToolsFromDOM() {
           (el.tagName === "INPUT" && !["submit", "button", "hidden", "reset", "image"].includes(el.type) && !el.disabled);
       }
 
-      // Bir buton için, en yakın atadan başlayarak içinde en az 1 kullanılabilir
-      // alan bulunan İLK (en dar) container'ı bulur. Gerçek <form> etiketi
-      // olmayan, div tabanlı SPA formlarını da yakalamak için gerekli.
+      // For a button, walks up from the nearest ancestor to find the FIRST
+      // (narrowest) container that holds at least 1 usable field. Needed to
+      // also catch div-based SPA "forms" that have no real <form> tag.
       function findContainerFields(btn) {
         let node = btn.parentElement;
         let depth = 0;
@@ -269,7 +270,7 @@ async function inferToolsFromDOM() {
         container.setAttribute("data-tool", toolName);
         const schema = buildSchemaFromFields(fields);
         const label = submitBtn ? (submitBtn.textContent || submitBtn.value || "").trim().slice(0, 40) : "form";
-        const description = "DOM analizinden otomatik çıkarılmış " + kindLabel + " (" + label + ")";
+        const description = "Automatically inferred from DOM analysis: " + kindLabel + " (" + label + ")";
         document.modelContext.registerTool({
           name: toolName,
           description,
@@ -283,16 +284,17 @@ async function inferToolsFromDOM() {
               el.dispatchEvent(new Event("input", { bubbles: true }));
               el.dispatchEvent(new Event("change", { bubbles: true }));
             }
-            // form.checkValidity() yerine her alanı TEK TEK kontrol ediyoruz —
-            // çünkü container gerçek bir <form> olmayabilir, ama HTML5
-            // checkValidity() her form-ilişkili elemanda (form dışında bile) çalışır.
+            // We check each field INDIVIDUALLY instead of form.checkValidity() —
+            // because the container might not be a real <form>, but HTML5's
+            // checkValidity() works on any form-associated element (even
+            // outside a form).
             const invalidEls = fields.filter(el => typeof el.checkValidity === "function" && !el.checkValidity());
             if (invalidEls.length > 0) {
-              const messages = invalidEls.map(el => (el.name || el.id || "alan") + ": " + el.validationMessage);
-              return { content: [{ type: "text", text: "HATA (native HTML5 validation): " + messages.join("; ") }], isError: true };
+              const messages = invalidEls.map(el => (el.name || el.id || "field") + ": " + el.validationMessage);
+              return { content: [{ type: "text", text: "ERROR (native HTML5 validation): " + messages.join("; ") }], isError: true };
             }
             if (submitBtn) submitBtn.click();
-            return { content: [{ type: "text", text: "Geçerli veri (native HTML5 doğrulamasından geçti), buton tıklandı" }] };
+            return { content: [{ type: "text", text: "Valid data (passed native HTML5 validation), button clicked" }] };
           }
         });
         return { name: toolName, description, inputSchema: schema };
@@ -301,7 +303,7 @@ async function inferToolsFromDOM() {
       const inferred = [];
       let counter = 0;
 
-      // 1) Klasik <form> taraması
+      // 1) Classic <form> scan
       const forms = Array.from(document.querySelectorAll("form"));
       const handledButtons = new Set();
       forms.forEach((form) => {
@@ -314,18 +316,18 @@ async function inferToolsFromDOM() {
         inferred.push(registerCandidate(form, fields, submitBtn, toolName, "form"));
       });
 
-      // 2) <form> içinde olmayan, "buton + en yakın container'daki inputlar" taraması
-      //    (React/Vue gibi div-tabanlı SPA formları için)
+      // 2) Scan for "button + inputs in the nearest container" outside any
+      //    <form> (for div-based SPA forms, e.g. React/Vue)
       const allButtons = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"]'));
       allButtons.forEach((btn) => {
-        if (btn.closest("form")) return; // zaten adım 1'de ele alındı
+        if (btn.closest("form")) return; // already handled in step 1
         if (handledButtons.has(btn)) return;
         const found = findContainerFields(btn);
         if (!found) return;
         counter++;
         const toolName = "inferred_container_" + counter;
         handledButtons.add(btn);
-        inferred.push(registerCandidate(found.container, found.fields, btn, toolName, "alan grubu"));
+        inferred.push(registerCandidate(found.container, found.fields, btn, toolName, "field group"));
       });
 
       return inferred;
@@ -335,29 +337,29 @@ async function inferToolsFromDOM() {
 }
 
 inferBtn.addEventListener("click", async () => {
-  toolsList.innerHTML = '<span class="text-slate-400">Formlar taranıyor…</span>';
+  toolsList.innerHTML = '<span class="text-slate-400">Scanning forms…</span>';
   let inferred = [];
   try {
     inferred = await inferToolsFromDOM();
   } catch (e) {
-    toolsList.innerHTML = `<span class="text-red-600 text-xs">Hata: ${e.message}</span>`;
+    toolsList.innerHTML = `<span class="text-red-600 text-xs">Error: ${e.message}</span>`;
     return;
   }
   const tagged = (inferred || []).map((t) => ({ ...t, synthetic: true }));
   discoveredTools = [...discoveredTools.filter((t) => !t.synthetic), ...tagged];
   renderToolsList();
   if (tagged.length === 0) {
-    toolsList.innerHTML = '<span class="text-slate-400 text-xs">Sayfada uygun bir &lt;form&gt; bulunamadı.</span>';
+    toolsList.innerHTML = '<span class="text-slate-400 text-xs">No suitable &lt;form&gt; found on the page.</span>';
   } else if (!selectedTool) {
     selectTool(tagged[0]);
   }
 });
 
 discoverBtn.addEventListener("click", async () => {
-  toolsList.innerHTML = '<span class="text-slate-400">Aranıyor (birkaç kez deneniyor)…</span>';
+  toolsList.innerHTML = '<span class="text-slate-400">Searching (retrying a few times)…</span>';
   const res = await fetchToolsWithRetry();
   if (!res.ok) {
-    toolsList.innerHTML = `<span class="text-red-600 text-xs">Hata: ${res.reason}</span>`;
+    toolsList.innerHTML = `<span class="text-red-600 text-xs">Error: ${res.reason}</span>`;
     return;
   }
   discoveredTools = res.tools;
@@ -369,7 +371,7 @@ discoverBtn.addEventListener("click", async () => {
 
 function renderToolsList() {
   if (discoveredTools.length === 0) {
-    toolsList.innerHTML = '<span class="text-slate-400">Tool bulunamadı.</span>';
+    toolsList.innerHTML = '<span class="text-slate-400">No tools found.</span>';
     return;
   }
   toolsList.innerHTML = discoveredTools
@@ -382,7 +384,7 @@ function renderToolsList() {
       }" style="${selectedTool && selectedTool.name === t.name ? "background:#eff6ff;" : ""}">
       <div class="flex items-center gap-1.5">
         <span class="font-medium text-slate-700">${t.name}</span>
-        ${t.synthetic ? '<span class="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style="background:#fef3c7;color:#92400e;">⚠️ Çıkarılmış</span>' : ""}
+        ${t.synthetic ? '<span class="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style="background:#fef3c7;color:#92400e;">⚠️ Inferred</span>' : ""}
       </div>
       <div class="text-xs text-slate-400">${t.description || ""}</div>
     </button>`
@@ -406,12 +408,12 @@ function selectTool(tool) {
 }
 
 geminiGenBtn.addEventListener("click", async () => {
-  scenariosList.innerHTML = '<span class="text-slate-400 text-sm">Gemini senaryo üretiyor…</span>';
+  scenariosList.innerHTML = '<span class="text-slate-400 text-sm">Gemini is generating scenarios…</span>';
   const res = await window.api.generateWithGemini(selectedTool, apiKeyInput.value.trim(), modelInput.value.trim());
   if (!res.ok) {
-    scenariosList.innerHTML = `<div class="text-xs text-red-600 mb-2">Gemini başarısız oldu (${res.reason}) — kural-tabanlı üreticiye düşülüyor.</div>`;
+    scenariosList.innerHTML = `<div class="text-xs text-red-600 mb-2">Gemini failed (${res.reason}) — falling back to the rule-based generator.</div>`;
     const fallback = await window.api.generateWithRules(selectedTool.inputSchema);
-    applyScenarios(fallback.scenarios, "kural-tabanlı (yedek)");
+    applyScenarios(fallback.scenarios, "rule-based (fallback)");
     return;
   }
   applyScenarios(res.scenarios, "gemini");
@@ -419,7 +421,7 @@ geminiGenBtn.addEventListener("click", async () => {
 
 rulesGenBtn.addEventListener("click", async () => {
   const res = await window.api.generateWithRules(selectedTool.inputSchema);
-  applyScenarios(res.scenarios, "kural-tabanlı");
+  applyScenarios(res.scenarios, "rule-based");
 });
 
 function applyScenarios(scenarios, source) {
@@ -430,7 +432,7 @@ function applyScenarios(scenarios, source) {
 
 function renderScenarios(source) {
   scenariosList.innerHTML =
-    `<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Kaynak: ${source} · ${currentScenarios.length} senaryo</div>` +
+    `<div class="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Source: ${source} · ${currentScenarios.length} scenarios</div>` +
     currentScenarios
       .map(
         (s) => `
@@ -439,7 +441,7 @@ function renderScenarios(source) {
         <span class="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:${
           s.expectSuccess ? "#eff6ff" : "#fef2f2"
         }; color:${s.expectSuccess ? "#1e40af" : "#dc2626"};">
-          ${s.expectSuccess ? "Başarılı" : "Reddedilmeli"}
+          ${s.expectSuccess ? "Should pass" : "Should be rejected"}
         </span>
       </div>`
       )
@@ -452,8 +454,8 @@ runBtn.addEventListener("click", async () => {
   const results = [];
 
   for (const scenario of currentScenarios) {
-    // 1) Görünen formu adım adım doldurup submit'e basar (sadece görsel takip için)
-    // 2) Ardından document.modelContext.executeTool() ile resmi sonucu alır (pass/fail bu belirler)
+    // 1) Fills the visible form step by step and clicks submit (for visual tracking only)
+    // 2) Then gets the authoritative result via document.modelContext.executeTool() (this decides pass/fail)
     const code = `
       (async () => {
         function ensureCursor() {
@@ -534,7 +536,7 @@ runBtn.addEventListener("click", async () => {
     try {
       outcome = await webview.executeJavaScript(code);
     } catch (e) {
-      outcome = { actualSuccess: false, text: "executeJavaScript hata: " + e.message };
+      outcome = { actualSuccess: false, text: "executeJavaScript error: " + e.message };
     }
     const pass = outcome.actualSuccess === scenario.expectSuccess;
     results.push({ ...scenario, ...outcome, pass });
@@ -544,7 +546,7 @@ runBtn.addEventListener("click", async () => {
 
   const passCount = results.filter((r) => r.pass).length;
   resultsSummary.classList.remove("hidden");
-  resultsSummary.innerHTML = `<span style="color:${passCount === results.length ? "#15803d" : "#dc2626"}">${passCount}/${results.length} senaryo geçti</span>`;
+  resultsSummary.innerHTML = `<span style="color:${passCount === results.length ? "#15803d" : "#dc2626"}">${passCount}/${results.length} scenarios passed</span>`;
 });
 
 function renderResults(results) {

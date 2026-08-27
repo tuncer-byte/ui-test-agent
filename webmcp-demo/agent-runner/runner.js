@@ -1,7 +1,7 @@
-// Genel amaçlı WebMCP Test Agent Runner
-// Kullanım: node runner.js <URL>
-// Herhangi bir canlı sitedeki document.modelContext tool'larını
-// keşfeder, şemadan senaryo üretir, çalıştırır ve sonucu raporlar.
+// General-purpose WebMCP Test Agent Runner
+// Usage: node runner.js <URL>
+// Discovers document.modelContext tools on any live site, generates
+// scenarios from their schemas, runs them, and reports the result.
 
 const { chromium } = require("playwright");
 const RandExp = require("randexp");
@@ -11,14 +11,14 @@ function genericValidValue(key, rule) {
   if (rule.default !== undefined) return rule.default;
   if (rule.enum && rule.enum.length) return rule.enum[0];
   if (rule.pattern) {
-    try { return new RandExp(rule.pattern).gen(); } catch (e) { /* düş */ }
+    try { return new RandExp(rule.pattern).gen(); } catch (e) { /* fall through */ }
   }
   if (rule.type === "number" || rule.type === "integer") {
     const min = rule.minimum !== undefined ? rule.minimum : 0;
     return min + 1;
   }
   if (rule.type === "boolean") return true;
-  let v = `ornek-${key}`;
+  let v = `sample-${key}`;
   if (rule.minLength && v.length < rule.minLength) v = v.padEnd(rule.minLength, "x");
   if (rule.maxLength && v.length > rule.maxLength) v = v.slice(0, rule.maxLength);
   return v;
@@ -35,26 +35,26 @@ function buildValidSample(schema) {
 function generateScenariosFromSchema(schema) {
   const scenarios = [];
   const base = buildValidSample(schema);
-  scenarios.push({ name: "Happy Path - geçerli veri", input: { ...base }, expectSuccess: true });
+  scenarios.push({ name: "Happy Path - valid data", input: { ...base }, expectSuccess: true });
 
   for (const [key, rule] of Object.entries(schema.properties || {})) {
     if (rule.pattern) {
-      scenarios.push({ name: `${key} - format ihlali (pattern)`, input: { ...base, [key]: "@@GECERSIZ@@" }, expectSuccess: false });
+      scenarios.push({ name: `${key} - format violation (pattern)`, input: { ...base, [key]: "@@INVALID@@" }, expectSuccess: false });
     }
     if (rule.minimum !== undefined) {
-      scenarios.push({ name: `${key} - sınır ihlali (minimum ${rule.minimum})`, input: { ...base, [key]: rule.minimum - 1 }, expectSuccess: false });
+      scenarios.push({ name: `${key} - boundary violation (minimum ${rule.minimum})`, input: { ...base, [key]: rule.minimum - 1 }, expectSuccess: false });
     }
     if (rule.maxLength !== undefined) {
-      scenarios.push({ name: `${key} - uzunluk ihlali (maxLength ${rule.maxLength})`, input: { ...base, [key]: "x".repeat(rule.maxLength + 20) }, expectSuccess: false });
+      scenarios.push({ name: `${key} - length violation (maxLength ${rule.maxLength})`, input: { ...base, [key]: "x".repeat(rule.maxLength + 20) }, expectSuccess: false });
     }
     if (rule.minLength) {
-      scenarios.push({ name: `${key} - minLength ihlali`, input: { ...base, [key]: "" }, expectSuccess: false });
+      scenarios.push({ name: `${key} - minLength violation`, input: { ...base, [key]: "" }, expectSuccess: false });
     }
   }
   for (const key of schema.required || []) {
     const clone = { ...base };
     delete clone[key];
-    scenarios.push({ name: `${key} - zorunlu alan eksik`, input: clone, expectSuccess: false });
+    scenarios.push({ name: `${key} - missing required field`, input: clone, expectSuccess: false });
   }
   return scenarios;
 }
@@ -72,18 +72,18 @@ async function waitForModelContext(page, timeoutMs = 8000) {
 async function main() {
   const url = process.argv[2];
   if (!url) {
-    console.error("Kullanım: node runner.js <URL>");
+    console.error("Usage: node runner.js <URL>");
     process.exit(1);
   }
 
-  console.log(`\n>> Hedef: ${url}`);
+  console.log(`\n>> Target: ${url}`);
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto(url, { waitUntil: "load" });
 
   const hasMcp = await waitForModelContext(page);
   if (!hasMcp) {
-    console.error("HATA: Bu sayfada document.modelContext bulunamadı (WebMCP tool'u kayıtlı değil).");
+    console.error("ERROR: No document.modelContext found on this page (no WebMCP tool registered).");
     await browser.close();
     process.exit(1);
   }
@@ -93,7 +93,7 @@ async function main() {
     return list;
   });
 
-  console.log(`>> ${tools.length} tool bulundu: ${tools.map(t => t.name).join(", ")}\n`);
+  console.log(`>> Found ${tools.length} tools: ${tools.map(t => t.name).join(", ")}\n`);
 
   let totalPass = 0, totalCount = 0;
 
@@ -119,13 +119,13 @@ async function main() {
       const pass = result.actualSuccess === scenario.expectSuccess;
       if (pass) totalPass++;
       console.log(
-        `  [${pass ? "PASS" : "FAIL"}] ${scenario.name.padEnd(42)} | beklenen=${scenario.expectSuccess ? "başarılı" : "reddedilmeli"} | gerçekleşen="${result.text}"`
+        `  [${pass ? "PASS" : "FAIL"}] ${scenario.name.padEnd(42)} | expected=${scenario.expectSuccess ? "success" : "should be rejected"} | actual="${result.text}"`
       );
     }
     console.log("");
   }
 
-  console.log(`>> TOPLAM: ${totalPass}/${totalCount} senaryo geçti`);
+  console.log(`>> TOTAL: ${totalPass}/${totalCount} scenarios passed`);
   await browser.close();
 }
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <title>WebMCP Agent UI</title>
@@ -35,7 +35,7 @@
 
 <div class="flex" style="height: calc(100% - 3.5rem);">
 
-  <!-- SOL PANEL — KONTROL -->
+  <!-- LEFT PANEL — CONTROLS -->
   <aside class="w-[440px] shrink-0 border-r border-slate-200 overflow-y-auto p-5 space-y-6">
 
     <!-- API KEY -->
@@ -48,72 +48,72 @@
 
     <div class="border-t border-slate-100"></div>
 
-    <!-- HEDEF URL -->
+    <!-- TARGET URL -->
     <section>
-      <label class="text-xs font-medium text-slate-500">Hedef URL (WebMCP tool içeren sayfa)</label>
+      <label class="text-xs font-medium text-slate-500">Target URL (page exposing WebMCP tools)</label>
       <div class="flex gap-2 mt-1">
         <input id="target-url" type="text" placeholder="http://localhost:8765/index.html" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:border-blue-400" />
-        <button id="load-btn" class="px-4 py-2 rounded-xl text-sm font-medium text-white" style="background:#1e87f0;">Yükle</button>
+        <button id="load-btn" class="px-4 py-2 rounded-xl text-sm font-medium text-white" style="background:#1e87f0;">Load</button>
       </div>
       <div id="mcp-status" class="text-xs text-slate-400 mt-2 flex items-center gap-1.5">
         <span id="mcp-status-dot" class="inline-block w-2 h-2 rounded-full" style="background:#94a3b8;"></span>
-        <span id="mcp-status-text">Sayfa henüz yüklenmedi</span>
+        <span id="mcp-status-text">Page not loaded yet</span>
       </div>
     </section>
 
     <div class="border-t border-slate-100"></div>
 
-    <!-- TOOL KEŞFİ -->
+    <!-- TOOL DISCOVERY -->
     <section>
       <div class="flex items-center justify-between gap-2">
-        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Tool'lar</h2>
+        <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500">Tools</h2>
         <div class="flex gap-1.5">
-          <button id="discover-btn" disabled class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium opacity-40 cursor-not-allowed">Keşfet</button>
-          <button id="infer-btn" disabled class="px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 text-xs font-medium opacity-40 cursor-not-allowed" title="Sitede native WebMCP yoksa, formlardan otomatik (düşük güvenli) tool çıkarır">🔍 DOM'dan Çıkar</button>
+          <button id="discover-btn" disabled class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium opacity-40 cursor-not-allowed">Discover</button>
+          <button id="infer-btn" disabled class="px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 text-xs font-medium opacity-40 cursor-not-allowed" title="If the site has no native WebMCP, automatically infers (lower-confidence) tools from its forms">🔍 Infer from DOM</button>
         </div>
       </div>
-      <div id="tools-list" class="mt-2 space-y-1.5 text-sm text-slate-400">Henüz keşfedilmedi.</div>
+      <div id="tools-list" class="mt-2 space-y-1.5 text-sm text-slate-400">Not discovered yet.</div>
     </section>
 
     <div class="border-t border-slate-100"></div>
 
-    <!-- SENARYO ÜRETİMİ -->
+    <!-- SCENARIO GENERATION -->
     <section>
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Test Senaryoları</h2>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Test Scenarios</h2>
       <div class="flex gap-2">
-        <button id="gemini-gen-btn" disabled class="flex-1 px-3 py-2 rounded-xl text-sm font-medium text-white opacity-40 cursor-not-allowed" style="background:#1e87f0;">✨ Gemini ile Üret</button>
-        <button id="rules-gen-btn" disabled class="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium opacity-40 cursor-not-allowed">Kural-Tabanlı</button>
+        <button id="gemini-gen-btn" disabled class="flex-1 px-3 py-2 rounded-xl text-sm font-medium text-white opacity-40 cursor-not-allowed" style="background:#1e87f0;">✨ Generate with Gemini</button>
+        <button id="rules-gen-btn" disabled class="px-3 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium opacity-40 cursor-not-allowed">Rule-Based</button>
       </div>
       <div id="scenarios-list" class="mt-3 space-y-1.5"></div>
     </section>
 
     <button id="run-btn" disabled class="w-full px-5 py-2.5 rounded-xl text-sm font-semibold text-white opacity-40 cursor-not-allowed" style="background:#0f1d3d;">
-      ▶ Testleri WebMCP Üzerinden Çalıştır
+      ▶ Run Tests via WebMCP
     </button>
 
     <div class="border-t border-slate-100"></div>
 
-    <!-- SONUÇLAR -->
+    <!-- RESULTS -->
     <section>
-      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Sonuçlar</h2>
-      <div id="results-list" class="space-y-1.5 text-sm text-slate-400">Henüz test çalıştırılmadı.</div>
+      <h2 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Results</h2>
+      <div id="results-list" class="space-y-1.5 text-sm text-slate-400">No tests run yet.</div>
       <div id="results-summary" class="mt-3 text-sm font-semibold hidden"></div>
     </section>
 
   </aside>
 
-  <!-- SAĞ PANEL — GERÇEK TARAYICI GÖRÜNÜMÜ -->
+  <!-- RIGHT PANEL — LIVE BROWSER VIEW -->
   <main class="flex-1 flex flex-col" style="background:#dee1e6;">
 
-    <!-- Sahte sekme çubuğu -->
+    <!-- Fake tab strip -->
     <div class="h-9 flex items-end px-2 pt-1.5 gap-1">
       <div class="flex items-center gap-2 px-3 py-1.5 rounded-t-lg bg-white text-xs text-slate-700 max-w-[240px] shadow-sm">
         <span id="tab-favicon">🌐</span>
-        <span id="tab-title" class="truncate">Yeni Sekme</span>
+        <span id="tab-title" class="truncate">New Tab</span>
       </div>
     </div>
 
-    <!-- Adres çubuğu / navigasyon -->
+    <!-- Address bar / navigation -->
     <div class="h-11 flex items-center gap-1.5 px-3 bg-white border-b border-slate-200">
       <button id="back-btn" class="nav-icon-btn" disabled>‹</button>
       <button id="forward-btn" class="nav-icon-btn" disabled>›</button>
@@ -124,7 +124,7 @@
       </div>
     </div>
 
-    <!-- Sayfa alanı -->
+    <!-- Page area -->
     <div class="flex-1 relative bg-white">
       <div id="loading-bar" class="hidden absolute top-0 left-0 h-0.5 progress-indeterminate" style="width:100%; z-index:10;"></div>
       <webview id="target-view" src="about:blank" allowpopups></webview>

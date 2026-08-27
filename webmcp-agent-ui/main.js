@@ -5,7 +5,7 @@ const { generateScenariosWithGemini } = require("./gemini-scenarios");
 const { generateScenariosFromSchema } = require("./scenario-utils");
 
 function readDefaultApiKey() {
-  // Kolaylık için, daha önce agent-runner/.env dosyasına yazılmış key varsa onu okuyup öneriyoruz.
+  // For convenience, if a key was already written to agent-runner/.env, read and suggest it.
   try {
     const envPath = path.join(__dirname, "..", "webmcp-demo", "agent-runner", ".env");
     const content = fs.readFileSync(envPath, "utf-8");

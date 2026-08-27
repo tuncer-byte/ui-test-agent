@@ -6,7 +6,7 @@ async function main() {
   const consoleLogs = [];
   page.on('console', msg => consoleLogs.push(msg.text()));
 
-  await page.goto("https://salespeak.ai/", { waitUntil: "networkidle", timeout: 30000 }).catch(e => console.log("goto hata:", e.message));
+  await page.goto("https://salespeak.ai/", { waitUntil: "networkidle", timeout: 30000 }).catch(e => console.log("goto error:", e.message));
   await page.waitForTimeout(3000);
 
   const diag = await page.evaluate(() => {
@@ -17,7 +17,7 @@ async function main() {
     result.hasNavigatorModelContext = !!(navigator).modelContext;
     result.iframeCount = document.querySelectorAll('iframe').length;
     result.iframeSrcs = Array.from(document.querySelectorAll('iframe')).map(f => f.src).slice(0, 10);
-    // sayfa kaynağında "modelContext" veya "webmcp" geçen script var mı
+    // whether any script in the page source mentions "modelContext" or "webmcp"
     const scripts = Array.from(document.querySelectorAll('script')).map(s => s.src).filter(Boolean);
     result.scriptSrcs = scripts.slice(0, 20);
     result.bodyHtmlSnippetHasModelContext = document.documentElement.outerHTML.includes('modelContext');
@@ -27,7 +27,7 @@ async function main() {
   });
 
   console.log(JSON.stringify(diag, null, 2));
-  console.log("\n--- Console logs (ilk 20) ---");
+  console.log("\n--- Console logs (first 20) ---");
   console.log(consoleLogs.slice(0, 20).join("\n"));
 
   await browser.close();

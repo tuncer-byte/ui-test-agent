@@ -1,5 +1,5 @@
-// Kural-tabanlı yedek senaryo üretici (Gemini key yoksa/hata olursa devreye girer).
-// Hem main process (Node) hem renderer'da çalışabilecek şekilde saf JS.
+// Rule-based fallback scenario generator (kicks in if there's no Gemini key or it errors).
+// Pure JS so it can run in both the main process (Node) and the renderer.
 
 function genericValidValue(key, rule) {
   if (rule.examples && rule.examples.length) return rule.examples[0];
@@ -9,14 +9,14 @@ function genericValidValue(key, rule) {
     try {
       const RandExp = require("randexp");
       return new RandExp(rule.pattern).gen();
-    } catch (e) { /* randexp yoksa aşağıdaki genel değere düş */ }
+    } catch (e) { /* no randexp available, fall through to the generic value below */ }
   }
   if (rule.type === "number" || rule.type === "integer") {
     const min = rule.minimum !== undefined ? rule.minimum : 0;
     return min + 1;
   }
   if (rule.type === "boolean") return true;
-  let v = `ornek-${key}`;
+  let v = `sample-${key}`;
   if (rule.minLength && v.length < rule.minLength) v = v.padEnd(rule.minLength, "x");
   if (rule.maxLength && v.length > rule.maxLength) v = v.slice(0, rule.maxLength);
   return v;
@@ -33,33 +33,33 @@ function buildValidSample(schema) {
 function generateScenariosFromSchema(schema) {
   const scenarios = [];
   const base = buildValidSample(schema);
-  scenarios.push({ name: "Happy Path - geçerli veri", input: { ...base }, expectSuccess: true });
+  scenarios.push({ name: "Happy Path - valid data", input: { ...base }, expectSuccess: true });
 
   for (const [key, rule] of Object.entries(schema.properties || {})) {
     if (rule.pattern) {
-      scenarios.push({ name: `${key} - format ihlali (pattern)`, input: { ...base, [key]: "@@GECERSIZ@@" }, expectSuccess: false });
+      scenarios.push({ name: `${key} - format violation (pattern)`, input: { ...base, [key]: "@@INVALID@@" }, expectSuccess: false });
     }
     if (rule.enum && rule.enum.length) {
-      const invalidEnumValue = typeof rule.enum[0] === "number" ? -999999 : "GECERSIZ_DEGER";
-      scenarios.push({ name: `${key} - enum dışı değer`, input: { ...base, [key]: invalidEnumValue }, expectSuccess: false });
+      const invalidEnumValue = typeof rule.enum[0] === "number" ? -999999 : "INVALID_VALUE";
+      scenarios.push({ name: `${key} - value outside enum`, input: { ...base, [key]: invalidEnumValue }, expectSuccess: false });
     }
     if (rule.minimum !== undefined) {
-      scenarios.push({ name: `${key} - sınır ihlali (minimum ${rule.minimum})`, input: { ...base, [key]: rule.minimum - 1 }, expectSuccess: false });
+      scenarios.push({ name: `${key} - boundary violation (minimum ${rule.minimum})`, input: { ...base, [key]: rule.minimum - 1 }, expectSuccess: false });
     }
     if (rule.maxLength !== undefined) {
-      scenarios.push({ name: `${key} - uzunluk ihlali (maxLength ${rule.maxLength})`, input: { ...base, [key]: "x".repeat(rule.maxLength + 20) }, expectSuccess: false });
+      scenarios.push({ name: `${key} - length violation (maxLength ${rule.maxLength})`, input: { ...base, [key]: "x".repeat(rule.maxLength + 20) }, expectSuccess: false });
     }
     if (rule.minLength) {
-      scenarios.push({ name: `${key} - minLength ihlali`, input: { ...base, [key]: "" }, expectSuccess: false });
+      scenarios.push({ name: `${key} - minLength violation`, input: { ...base, [key]: "" }, expectSuccess: false });
     }
     if (rule.type === "integer") {
-      scenarios.push({ name: `${key} - tam sayı olmayan değer`, input: { ...base, [key]: (typeof base[key] === "number" ? base[key] : 1) + 0.5 }, expectSuccess: false });
+      scenarios.push({ name: `${key} - non-integer value`, input: { ...base, [key]: (typeof base[key] === "number" ? base[key] : 1) + 0.5 }, expectSuccess: false });
     }
   }
   for (const key of schema.required || []) {
     const clone = { ...base };
     delete clone[key];
-    scenarios.push({ name: `${key} - zorunlu alan eksik`, input: clone, expectSuccess: false });
+    scenarios.push({ name: `${key} - missing required field`, input: clone, expectSuccess: false });
   }
   return scenarios;
 }
